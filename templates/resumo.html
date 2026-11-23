@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirmações • Bernardo</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body><main class="convite painel">
+  <h1>CONFIRMAÇÕES <span>BERNARDO 8 ANOS</span></h1>
+  <div class="numeros"><div><b>{{ total }}</b><small>respostas positivas</small></div><div><b>{{ pessoas }}</b><small>pessoas confirmadas</small></div></div>
+  <h2>Lista de respostas</h2>
+  {% if registros %}
+  <div class="tabela-wrap"><table><thead><tr><th>Nome</th><th>Resposta</th><th>Acompanhantes</th><th>Contato</th><th>Recado</th></tr></thead><tbody>
+  {% for r in registros %}<tr><td>{{ r.nome }}</td><td>{{ "Vai" if r.resposta == "sim" else "Não vai" }}</td><td>{{ r.acompanhantes }}</td><td>{{ r.telefone or "—" }}</td><td>{{ r.observacao or "—" }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p>Ainda não há respostas.</p>{% endif %}
+  <a class="whats" href="{{ url_for('inicio') }}">Voltar ao convite</a>
+</main></body></html>
