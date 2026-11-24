@@ -127,7 +127,7 @@ def confirmar():
             datetime.now().isoformat(timespec="seconds")
         ))
 
-    flash("Resposta recebida! Obrigado por confirmar. ❤️🖤")
+    flash("✅ Sua confirmação para o evento foi enviada com sucesso! ❤️🖤", "sucesso")
 
     return redirect(url_for("inicio") + "#confirmar")
 
