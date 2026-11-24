@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Área Restrita • Bernardo</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .login-box {
+            max-width: 420px;
+            margin: 50px auto;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 14px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .mensagem {
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 8px;
+            background: #fff0f0;
+            color: #b00020;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="convite painel login-box">
+
+        <h1>
+            ÁREA RESTRITA
+            <span>BERNARDO 8 ANOS</span>
+        </h1>
+
+        <p>Digite sua senha para acessar as confirmações.</p>
+
+        {% with mensagens = get_flashed_messages() %}
+            {% if mensagens %}
+                {% for mensagem in mensagens %}
+                    <div class="mensagem">
+                        {{ mensagem }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ csrf_token() }}">
+
+            <input
+                type="password"
+                name="senha"
+                placeholder="Digite sua senha"
+                required
+                autofocus
+            >
+
+            <button type="submit">
+                ACESSAR
+            </button>
+
+        </form>
+
+        <br>
+
+        <a class="whats" href="{{ url_for('inicio') }}">
+            Voltar ao convite
+        </a>
+
+    </main>
+
+</body>
+</html>
