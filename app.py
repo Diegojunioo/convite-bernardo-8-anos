@@ -1,6 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import (
+    Flask, render_template, request, redirect,
+    url_for, flash, session
+)
+
 import sqlite3
 import os
+import secrets
+import hmac
 
 from pathlib import Path
 from datetime import datetime
@@ -8,17 +14,18 @@ from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
 
-# Permite configurar outro caminho para o banco no Render.
-DB_PATH = Path(os.environ.get("DB_PATH", str(BASE_DIR / "confirmacoes.db")))
-
+DB_PATH = Path(
+    os.environ.get("DB_PATH", str(BASE_DIR / "confirmacoes.db"))
+)
 
 app = Flask(__name__)
 
-app.secret_key = os.environ.get(
-    "SECRET_KEY",
-    "troque-esta-chave-antes-de-publicar"
-)
+app.secret_key = os.environ.get("SECRET_KEY", "chave-temporaria-local")
 
+
+# --------------------------------------------------
+# BANCO DE DADOS
+# --------------------------------------------------
 
 def conectar():
     conn = sqlite3.connect(DB_PATH)
@@ -27,7 +34,7 @@ def conectar():
 
 
 def iniciar_banco():
-    # Garante que a pasta do banco exista.
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     with conectar() as conn:
@@ -44,16 +51,45 @@ def iniciar_banco():
         """)
 
 
-# IMPORTANTE:
-# Executa a criação da tabela quando o Flask é carregado,
-# inclusive quando iniciado pelo Gunicorn no Render.
 iniciar_banco()
 
+
+# --------------------------------------------------
+# PROTEÇÃO CONTRA CSRF
+# --------------------------------------------------
+
+def gerar_csrf():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+
+    return session["csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = gerar_csrf
+
+
+def validar_csrf():
+
+    token = request.form.get("csrf_token", "")
+
+    return hmac.compare_digest(
+        session.get("csrf_token", ""),
+        token
+    )
+
+
+# --------------------------------------------------
+# PÁGINA PRINCIPAL
+# --------------------------------------------------
 
 @app.route("/")
 def inicio():
     return render_template("index.html")
 
+
+# --------------------------------------------------
+# CONFIRMAR PRESENÇA
+# --------------------------------------------------
 
 @app.route("/confirmar", methods=["POST"])
 def confirmar():
@@ -91,13 +127,57 @@ def confirmar():
             datetime.now().isoformat(timespec="seconds")
         ))
 
-    flash("Resposta recebida! Obrigado por confirmar. ❤️🖤", "sucesso")
+    flash("Resposta recebida! Obrigado por confirmar. ❤️🖤")
 
     return redirect(url_for("inicio") + "#confirmar")
 
 
+# --------------------------------------------------
+# LOGIN DO RESUMO
+# --------------------------------------------------
+
+@app.route("/resumo/login", methods=["GET", "POST"])
+def login_resumo():
+
+    if session.get("resumo_autorizado"):
+        return redirect(url_for("resumo"))
+
+    if request.method == "POST":
+
+        if not validar_csrf():
+            flash("Solicitação inválida. Tente novamente.", "erro")
+            return redirect(url_for("login_resumo"))
+
+        senha_correta = os.environ.get("RESUMO_SENHA")
+
+        if not senha_correta:
+            flash("A senha ainda não foi configurada no servidor.", "erro")
+            return redirect(url_for("login_resumo"))
+
+        senha_digitada = request.form.get("senha", "")
+
+        if hmac.compare_digest(senha_digitada, senha_correta):
+
+            session.clear()
+            session["resumo_autorizado"] = True
+            gerar_csrf()
+
+            return redirect(url_for("resumo"))
+
+        flash("Senha incorreta. Tente novamente.", "erro")
+
+    return render_template("resumo_login.html")
+
+
+# --------------------------------------------------
+# RESUMO DAS CONFIRMAÇÕES
+# --------------------------------------------------
+
 @app.route("/resumo")
 def resumo():
+
+    if not session.get("resumo_autorizado"):
+        return redirect(url_for("login_resumo"))
 
     with conectar() as conn:
 
@@ -114,7 +194,8 @@ def resumo():
         """).fetchone()["n"]
 
         registros = conn.execute("""
-            SELECT nome, resposta, acompanhantes, telefone, observacao, criado_em
+            SELECT id, nome, resposta, acompanhantes,
+                   telefone, observacao, criado_em
             FROM confirmacoes
             ORDER BY id DESC
         """).fetchall()
@@ -125,6 +206,53 @@ def resumo():
         pessoas=pessoas,
         registros=registros
     )
+
+
+# --------------------------------------------------
+# EXCLUIR CONFIRMAÇÃO
+# --------------------------------------------------
+
+@app.route("/resumo/excluir/<int:id>", methods=["POST"])
+def excluir_confirmacao(id):
+
+    if not session.get("resumo_autorizado"):
+        return redirect(url_for("login_resumo"))
+
+    if not validar_csrf():
+        flash("Solicitação inválida.", "erro")
+        return redirect(url_for("resumo"))
+
+    with conectar() as conn:
+
+        cursor = conn.execute(
+            "DELETE FROM confirmacoes WHERE id = ?",
+            (id,)
+        )
+
+        if cursor.rowcount:
+            flash("Confirmação excluída com sucesso!", "sucesso")
+        else:
+            flash("Confirmação não encontrada.", "erro")
+
+    return redirect(url_for("resumo"))
+
+
+# --------------------------------------------------
+# SAIR DO RESUMO
+# --------------------------------------------------
+
+@app.route("/resumo/sair", methods=["POST"])
+def sair_resumo():
+
+    if not validar_csrf():
+        flash("Solicitação inválida.", "erro")
+        return redirect(url_for("inicio"))
+
+    session.clear()
+
+    flash("Você saiu da área de confirmações.", "sucesso")
+
+    return redirect(url_for("inicio"))
 
 
 if __name__ == "__main__":
